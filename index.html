@@ -158,4 +158,41 @@ function sendDWS(){
  if(stage==="contact"){lead.contact=raw;finishDWS();return}
 }
 </script>
+<script id="dws-intake-bridge">
+/* DWS: doar salvarea cererilor; nicio modificare a aspectului site-ului. */
+(() => {
+ const endpoint='https://dws-cereri.dulgheruionutbogdan.chatgpt.site/api/lead';
+ let lastPayload='',requestId='';
+ async function saveLead(fields){
+  const serialized=JSON.stringify(fields);
+  if(serialized!==lastPayload){requestId=crypto.randomUUID();lastPayload=serialized;}
+  const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:requestId,...fields}),signal:AbortSignal.timeout(20000)});
+  const x=await r.json();
+  if(!r.ok||x.ok!==true)throw new Error(x.error||'Solicitarea nu a fost confirmată. Încearcă din nou.');
+  return x.id;
+ }
+ const form=document.querySelector('#oferta form');
+ if(form){
+  let sending=false;
+  form.onsubmit=async event=>{
+   event.preventDefault();if(sending)return;
+   const inputs=form.querySelectorAll('input'),select=form.querySelector('select'),area=form.querySelector('textarea'),button=form.querySelector('button'),message=form.querySelector('#msg');
+   const fields={name:inputs[0].value.trim(),contact:inputs[1].value.trim(),service:select.selectedIndex?select.value:'Solicitare ofertă',location:'',details:area.value.trim()+(inputs[2].value.trim()?'\nTelefon: '+inputs[2].value.trim():'')};
+   sending=true;button.disabled=true;const label=button.textContent;button.textContent='Se trimite…';message.hidden=false;message.textContent='Salvăm solicitarea…';
+   try{await saveLead(fields);message.textContent='Solicitarea a fost trimisă echipei DWS. Te vom contacta pentru ofertă.';}
+   catch(e){message.textContent=e.message||'Nu am putut confirma trimiterea. Încearcă din nou sau sună DWS.';}
+   finally{sending=false;button.disabled=false;button.textContent=label;}
+  };
+ }
+ let botSending=false;
+ finishDWS=async function(){
+  if(botSending)return;
+  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\nSuprafață / volum: '+lead.size+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when};
+  botSending=true;stage='sending';addDWS('Salvez solicitarea pentru echipa DWS…');
+  try{await saveLead(fields);addDWS('Solicitarea ta a fost trimisă direct echipei DWS. Te vom contacta la '+fields.contact+' pentru evaluare și ofertă.');stage='done';}
+  catch(e){addDWS((e.message||'Nu am putut confirma salvarea.')+'\nScrie din nou emailul sau telefonul pentru a reîncerca, ori sună DWS la +40 774 023 316.');stage='contact';}
+  finally{botSending=false;}
+ };
+})();
+</script>
 </body></html>

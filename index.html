@@ -109,9 +109,17 @@ function addDWS(text,who='bot',html=false){
 }
 function ask(t){setTimeout(()=>addDWS(t),180)}
 function startDWS(service){
- lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""}; lead.service=service; stage="location"; addDWS(service,'user');
- ask("Perfect. În ce localitate este lucrarea?");
+ if(stage==="sending")return;
+ const preserve=stage!=="done"&&stage!=="service";
+ const previous=lead;
+ lead={service,location:preserve?previous.location:"",property:preserve?previous.property:"",size:"",frequency:"",when:"",name:"",contact:""};
+ addDWS(service,'user');
+ if(lead.location){addDWS("Am schimbat serviciul. Păstrăm localitatea: "+lead.location+".");if(lead.property){beginDWSWork();}else{stage="property";ask("Ce tip de spațiu este? De exemplu: casă, apartament, birou, magazin sau hală.");}}
+ else{stage="location";ask("În ce localitate este lucrarea?");}
 }
+function beginDWSWork(){
+ if(lead.service!=="Curățare geamuri"){stage="workScope";ask(lead.service.includes("Debarasare")?"Ce obiecte sau materiale trebuie evacuate? Menționează dacă sunt moloz, aparate electrice, vopsele ori alte materiale speciale.":lead.service.includes("Întreținere")?"Ce activități de întreținere dorești concret? De exemplu: curățenie în spații comune, îngrijirea curții sau alte lucrări. Poți descrie necesarul în cuvintele tale.":"Ce dorești să curățăm concret: pardoseli, mobilier, băi, bucătărie sau întregul spațiu? Este curățenie obișnuită, generală ori după renovare?");return;}
+ stage="size";ask(lead.service==="Curățare geamuri"?"Știi numărul aproximativ de geamuri și dimensiunile aproximative ale acestora (lățime × înălțime)? De exemplu: 12 geamuri de circa 1 × 1,5 m. Dacă nu știi, spune-mi și echipa va confirma la evaluare.":lead.service.includes("Debarasare")?"Ce trebuie evacuat și în ce cantitate aproximativă? De exemplu: 3 dulapuri și 2 canapele, sau aproximativ 5 m³.":"Ce suprafață aproximativă trebuie curățată sau întreținută, în m²? Dacă nu știi, poți spune că este de evaluat.");return}
 function detectService(t){
  if(/geam|vitr/.test(t)) return "Curățare geamuri";
  if(/debar|evacu|mobil|golesc|golire/.test(t)) return "Debarasare și evacuare";
@@ -170,10 +178,7 @@ if(stage==="done"){
    lead.service=s; stage="location"; ask("În regulă. În ce localitate este lucrarea?"); return;
  }
  if(stage==="location"){lead.location=raw;stage="property";ask("Ce tip de spațiu este? De exemplu: apartament, casă, birou, magazin, scară de bloc, hală sau alt tip de proprietate.");return}
- if(stage==="property"){
- lead.property=raw;
- if(lead.service!=="Curățare geamuri"){stage="workScope";ask(lead.service.includes("Debarasare")?"Ce obiecte sau materiale trebuie evacuate? Menționează dacă sunt moloz, aparate electrice, vopsele ori alte materiale speciale.":lead.service.includes("Întreținere")?"Ce activități de întreținere dorești concret? De exemplu: curățenie în spații comune, îngrijirea curții sau alte lucrări. Poți descrie necesarul în cuvintele tale.":"Ce dorești să curățăm concret: pardoseli, mobilier, băi, bucătărie sau întregul spațiu? Este curățenie obișnuită, generală ori după renovare?");return;}
- stage="size";ask(lead.service==="Curățare geamuri"?"Știi numărul aproximativ de geamuri și dimensiunile aproximative ale acestora (lățime × înălțime)? De exemplu: 12 geamuri de circa 1 × 1,5 m. Dacă nu știi, spune-mi și echipa va confirma la evaluare.":lead.service.includes("Debarasare")?"Ce trebuie evacuat și în ce cantitate aproximativă? De exemplu: 3 dulapuri și 2 canapele, sau aproximativ 5 m³.":"Ce suprafață aproximativă trebuie curățată sau întreținută, în m²? Dacă nu știi, poți spune că este de evaluat.");return}
+ if(stage==="property"){lead.property=raw;beginDWSWork();return;}
  if(stage==="workScope"){lead.workScope=raw;stage="size";ask(lead.service.includes("Debarasare")?"Ce cantitate aproximativă trebuie evacuată? Poți indica numărul obiectelor sau volumul în m³. Dacă nu cunoști, spune că este de evaluat.":lead.service.includes("Întreținere")?"Care este dimensiunea zonei pentru fiecare activitate cerută? De exemplu: suprafață în m², număr de scări sau etaje. Precizează la ce se referă fiecare valoare; dacă nu știi, vom evalua.":"Ce suprafață aproximativă trebuie efectiv curățată, în m²? Pentru pardoseli, spune și materialul (parchet, gresie, mochetă etc.). Dacă sunt mai multe zone, le poți descrie separat.");return;}
  if(stage==="size"){
  if(/^\d+(?:[.,]\d+)?$/.test(raw)){ask(lead.service==="Curățare geamuri"?"Numărul indicat reprezintă câte geamuri sunt sau suprafața lor în m²? Precizează și dimensiunile aproximative, dacă le cunoști.":lead.service.includes("Debarasare")?"Numărul reprezintă câte obiecte sunt sau volumul în m³? Precizează la ce se referă.":"Numărul reprezintă suprafața în m² sau o altă cantitate? Precizează la ce lucrare se referă.");return;}
@@ -227,5 +232,51 @@ if(stage==="done"){
   finally{botSending=false;}
  };
 })();
+</script>
+
+<script id="dws-contextual-options">
+let dwsQuestionTimer;
+function renderDWSQuick(){
+ const box=document.getElementById('dwsQuick');if(!box)return;
+ box.replaceChildren();
+ const expected=stage;
+ function option(label,value=label,mode='answer'){
+  const button=document.createElement('button');button.type='button';button.textContent=label;
+  button.addEventListener('click',()=>{
+   if(stage!==expected||stage==='sending')return;
+   if(mode==='service'){startDWS(value);renderDWSQuick();return;}
+   if(mode==='new'){lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""};stage='service';ask("Pentru ce serviciu ai nevoie de o cerere nouă?");return;}
+   const input=document.getElementById('dwsInput');
+   if(mode==='input'){input.focus();return;}
+   if(mode==='evaluation'){lead.evaluation="Evaluare solicitată de client";stage='evaluationChoice';ask("Preferi să trimiți fotografii pe WhatsApp sau să soliciți o evaluare la fața locului?");return;}
+   input.value=value;sendDWS();
+  });box.appendChild(button);
+ }
+ const unknown=()=>option('Nu știu / evaluare','Nu știu');
+ const type=()=>option('Scriu detaliile','','input');
+ if(stage==='service'){
+  [['Curățenie','Curățenie profesională'],['Geamuri','Curățare geamuri'],['Întreținere','Întreținere proprietăți'],['Debarasare','Debarasare și evacuare']].forEach(([a,b])=>option(a,b,'service'));
+ }else if(stage==='location'){type();}
+ else if(stage==='property'){['Casă','Apartament','Birou','Magazin','Hală','Scară de bloc'].forEach(x=>option(x));type();}
+ else if(stage==='workScope'){type();unknown();}
+ else if(stage==='size'){option('Pot da o estimare','','input');unknown();}
+ else if(stage==='windowSides'){['Interior','Exterior','Ambele părți'].forEach(x=>option(x));unknown();}
+ else if(['windowAccess','windowScope','workAccess'].includes(stage)){type();unknown();}
+ else if(stage==='evaluationChoice'){option('Trimit poze','poze');option('Solicit o vizită','evaluare la fața locului');option('Continui cu ce știu','continuăm');}
+ else if(stage==='visitDetails'){option('Scriu adresa și disponibilitatea','','input');}
+ else if(stage==='frequency'){option('O singură intervenție');option('Periodic — scriu frecvența','','input');}
+ else if(stage==='when'){option('Scriu perioada dorită','','input');option('De stabilit cu echipa');}
+ else if(stage==='name'){option('Scriu numele / compania','','input');}
+ else if(stage==='contact'){option('Scriu emailul sau telefonul','','input');}
+ else if(stage==='done'){option('Cerere nouă','','new');}
+ box.hidden=stage==='sending';
+ const input=document.getElementById('dwsInput');if(input){input.disabled=stage==='sending';input.placeholder=stage==='evaluationChoice'?'Alege o variantă sau scrie preferința…':stage==='size'?'Scrie ce cunoști sau alege evaluarea…':'Scrie mesajul…';}
+}
+ask=function(text){clearTimeout(dwsQuestionTimer);dwsQuestionTimer=setTimeout(()=>addDWS(text),180);renderDWSQuick();};
+const dwsSendWithOptions=sendDWS;
+sendDWS=function(){try{return dwsSendWithOptions();}finally{renderDWSQuick();}};
+const dwsFinishWithOptions=finishDWS;
+finishDWS=async function(){try{const result=dwsFinishWithOptions();renderDWSQuick();return await result;}finally{renderDWSQuick();}};
+document.addEventListener('DOMContentLoaded',renderDWSQuick);
 </script>
 </body></html>

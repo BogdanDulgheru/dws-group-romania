@@ -191,7 +191,7 @@ if(stage==="done"){
  if(stage==="windowAccess"){lead.windowAccess=raw;stage="windowScope";ask("Vrei și curățarea ramelor și pervazurilor? Sunt depuneri obișnuite sau urme după renovare, precum vopsea, ciment ori adeziv?");return;}
  if(stage==="windowScope"){lead.windowScope=raw;stage="frequency";ask("Ai nevoie de o singură intervenție sau de curățare periodică?");return;}
  if(stage==="frequency"){lead.frequency=raw;stage="when";ask("Când ai dori să fie efectuată lucrarea?");return}
- if(stage==="when"){lead.when=raw;stage="name";ask("Perfect. Cum te numești sau care este numele companiei?");return}
+ if(stage==="when"){lead.when=raw;stage="moreJobs";ask("Mai dorești o lucrare în această solicitare sau continuăm cu datele de contact?");return}
  if(stage==="name"){lead.name=raw;stage="contact";ask("Ultimul pas: lasă un număr de telefon sau o adresă de e-mail la care echipa DWS te poate contacta.");return}
  if(stage==="contact"){lead.contact=raw;finishDWS();return}
 }
@@ -225,7 +225,7 @@ if(stage==="done"){
  let botSending=false;
  finishDWS=async function(){
   if(botSending)return;
-  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\n'+(lead.service==='Curățare geamuri'?'Număr și dimensiuni geamuri (declarate de client): ':lead.service.includes('Debarasare')?'Obiecte / volum de evacuat: ':'Suprafață de lucru declarată: ')+(lead.size||'De evaluat')+(lead.service==='Curățare geamuri'?'\nPărți de curățat: '+(lead.windowSides||'De evaluat')+'\nÎnălțime și acces: '+(lead.windowAccess||'De evaluat')+'\nRame, pervazuri și depuneri: '+(lead.windowScope||'De evaluat'):'')+(lead.workScope?'\nLucrări cerute: '+lead.workScope:'')+(lead.workAccess?'\nAcces și restricții: '+lead.workAccess:'')+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when+(lead.evaluation?'\nEvaluare: '+lead.evaluation:'')+(lead.visitDetails?'\nAdresă și disponibilitate pentru evaluare: '+lead.visitDetails:'')};
+  const fields={name:lead.name,contact:lead.contact,service:dwsServiceSummary(),location:lead.location,details:dwsJobsDetails()+'Tip proprietate: '+lead.property+'\n'+(lead.service==='Curățare geamuri'?'Număr și dimensiuni geamuri (declarate de client): ':lead.service.includes('Debarasare')?'Obiecte / volum de evacuat: ':'Suprafață de lucru declarată: ')+(lead.size||'De evaluat')+(lead.service==='Curățare geamuri'?'\nPărți de curățat: '+(lead.windowSides||'De evaluat')+'\nÎnălțime și acces: '+(lead.windowAccess||'De evaluat')+'\nRame, pervazuri și depuneri: '+(lead.windowScope||'De evaluat'):'')+(lead.workScope?'\nLucrări cerute: '+lead.workScope:'')+(lead.workAccess?'\nAcces și restricții: '+lead.workAccess:'')+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when+(lead.evaluation?'\nEvaluare: '+lead.evaluation:'')+(lead.visitDetails?'\nAdresă și disponibilitate pentru evaluare: '+lead.visitDetails:'')};
   botSending=true;stage='sending';addDWS('Salvez solicitarea pentru echipa DWS…');
   try{await saveLead(fields);addDWS('Solicitarea ta a fost trimisă direct echipei DWS. Te vom contacta la '+fields.contact+' pentru evaluare și ofertă.');stage='done';}
   catch(e){addDWS((e.message||'Nu am putut confirma salvarea.')+'\nScrie din nou emailul sau telefonul pentru a reîncerca, ori sună DWS la +40 774 023 316.');stage='contact';}
@@ -245,7 +245,8 @@ function renderDWSQuick(){
   button.addEventListener('click',()=>{
    if(stage!==expected||stage==='sending')return;
    if(mode==='service'){startDWS(value);renderDWSQuick();return;}
-   if(mode==='new'){lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""};stage='service';ask("Pentru ce serviciu ai nevoie de o cerere nouă?");return;}
+   if(mode==='addJob'){dwsArchiveJob();stage='additionalService';ask('Ce alt serviciu dorești? Lucrările deja descrise rămân în aceeași solicitare.');return;}
+   if(mode==='new'){dwsJobs=[];dwsPendingService='';lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""};stage='service';ask("Pentru ce serviciu ai nevoie de o cerere nouă?");return;}
    const input=document.getElementById('dwsInput');
    if(mode==='input'){input.focus();return;}
    if(mode==='evaluation'){lead.evaluation="Evaluare solicitată de client";stage='evaluationChoice';ask("Preferi să trimiți fotografii pe WhatsApp sau să soliciți o evaluare la fața locului?");return;}
@@ -254,7 +255,7 @@ function renderDWSQuick(){
  }
  const unknown=()=>option('Nu știu / evaluare','Nu știu');
  const type=()=>option('Scriu detaliile','','input');
- if(stage==='service'){
+ if(stage==='service'||stage==='additionalService'){
   [['Curățenie','Curățenie profesională'],['Geamuri','Curățare geamuri'],['Întreținere','Întreținere proprietăți'],['Debarasare','Debarasare și evacuare']].forEach(([a,b])=>option(a,b,'service'));
  }else if(stage==='location'){type();}
  else if(stage==='property'){['Casă','Apartament','Birou','Magazin','Hală','Scară de bloc'].forEach(x=>option(x));type();}
@@ -266,9 +267,12 @@ function renderDWSQuick(){
  else if(stage==='visitDetails'){option('Scriu adresa și disponibilitatea','','input');}
  else if(stage==='frequency'){option('O singură intervenție');option('Periodic — scriu frecvența','','input');}
  else if(stage==='when'){option('Scriu perioada dorită','','input');option('De stabilit cu echipa');}
+ else if(stage==='moreJobs'){option('Adaugă o lucrare','','addJob');option('Continuăm cu datele de contact','continuăm');}
+ else if(stage==='serviceChange'){option('Adaugă la cerere','adaugă');option('Înlocuiește lucrarea curentă','înlocuiește');option('Păstrează lucrarea curentă','păstrează');}
  else if(stage==='name'){option('Scriu numele / compania','','input');}
  else if(stage==='contact'){option('Scriu emailul sau telefonul','','input');}
  else if(stage==='done'){option('Cerere nouă','','new');}
+ if(!['service','additionalService','serviceChange','moreJobs','done','sending','name','contact'].includes(stage)&&lead.service)option('Adaugă o lucrare','','addJob');
  box.hidden=stage==='sending';
  const input=document.getElementById('dwsInput');if(input){input.disabled=stage==='sending';input.placeholder=stage==='evaluationChoice'?'Alege o variantă sau scrie preferința…':stage==='size'?'Scrie ce cunoști sau alege evaluarea…':'Scrie mesajul…';}
 }
@@ -278,5 +282,61 @@ sendDWS=function(){try{return dwsSendWithOptions();}finally{renderDWSQuick();}};
 const dwsFinishWithOptions=finishDWS;
 finishDWS=async function(){try{const result=dwsFinishWithOptions();renderDWSQuick();return await result;}finally{renderDWSQuick();}};
 document.addEventListener('DOMContentLoaded',renderDWSQuick);
+</script>
+<script id="dws-multiple-jobs">
+let dwsJobs=[],dwsPendingService='',dwsResumeStage='';
+function dwsArchiveJob(){if(lead.service){dwsJobs.push({...lead});} }
+function dwsAllJobs(){return [...dwsJobs,...(lead.service?[lead]:[])];}
+function dwsServiceSummary(){return [...new Set(dwsAllJobs().map(j=>j.service))].join(' + ');}
+function dwsJobsDetails(){
+ return dwsJobs.map((j,i)=>'LUCRAREA '+(i+1)+': '+j.service+'\n'+[
+ ['Localitate',j.location],['Tip proprietate',j.property],['Lucrări cerute',j.workScope],
+ [j.service==='Curățare geamuri'?'Număr și dimensiuni geamuri declarate':'Cantitate / suprafață declarată',j.size],
+ ['Părți de curățat',j.windowSides],['Înălțime și acces',j.windowAccess],['Rame, pervazuri și depuneri',j.windowScope],
+ ['Acces și restricții',j.workAccess],['Frecvență',j.frequency],['Termen dorit',j.when],['Evaluare',j.evaluation],['Adresă / disponibilitate vizită',j.visitDetails]
+ ].filter(([,v])=>v).map(([k,v])=>k+': '+v).join('\n')+'\nDetaliile lipsă trebuie confirmate înainte de ofertare.\n\n').join('')+
+ 'LUCRAREA '+(dwsJobs.length+1)+': '+lead.service+'\n';
+}
+const dwsStartSingle=startDWS;
+startDWS=function(service){
+ if(stage==='sending')return;
+ const previous=lead,adding=stage==='additionalService';
+ if(stage==='done'||stage==='service')dwsJobs=[];
+ dwsStartSingle(service);
+ if(adding){lead.location=previous.location;lead.property=previous.property;
+  if(lead.location&&lead.property)beginDWSWork();
+  else if(lead.location){stage='property';ask('Ce tip de spațiu este pentru această lucrare?');}
+  else{stage='location';ask('În ce localitate este această lucrare?');}
+  addDWS('Am adăugat '+service+'. Păstrăm lucrările anterioare și, pentru început, aceeași localitate și proprietate. Spune-mi dacă noua lucrare este în alt loc.');
+ }
+ renderDWSQuick();
+};
+const dwsSendSingle=sendDWS;
+sendDWS=function(){
+ const input=document.getElementById('dwsInput'),raw=input.value.trim();if(!raw||stage==='sending')return;
+ const text=raw.toLowerCase(),service=detectService(text);
+ function consume(){addDWS(raw,'user');input.value='';}
+ if(stage==='done'&&/nou|alt[ăa]|ofert/.test(text)){dwsJobs=[];}
+ if(stage==='serviceChange'){
+  if(/adaug|ambele|împreun|impreun/.test(text)){consume();dwsArchiveJob();stage='additionalService';startDWS(dwsPendingService);}
+  else if(/înloc|inloc|schimb/.test(text)){consume();stage=dwsResumeStage;startDWS(dwsPendingService);}
+  else if(/păstr|pastr|anul|renun/.test(text)){consume();stage=dwsResumeStage;ask('Continuăm cu lucrarea '+lead.service+'. Răspunde la întrebarea anterioară.');}
+  else{consume();ask('Vrei să adaugi serviciul, să înlocuiești lucrarea curentă sau să păstrezi lucrarea curentă?');}renderDWSQuick();return;
+ }
+ if(!['service','done','name','contact','serviceChange'].includes(stage)){
+  const locationChange=raw.match(/^(?:(?:noua )?lucrare(?:a)? (?:este|e)|localitatea (?:este|e)|loca[țt]ia (?:este|e))\s+(?:[îi]n\s+)?(.+)$/i);
+  if(locationChange){consume();lead.location=locationChange[1].trim();ask('Am actualizat localitatea pentru '+lead.service+': '+lead.location+'. Continuăm cu întrebarea anterioară.');return;}
+ }
+ if(stage==='additionalService'){if(!service){consume();ask('Ce alt serviciu dorești: curățenie, geamuri, întreținere sau debarasare?');return;}input.value='';startDWS(service);return;}
+ if(stage==='moreJobs'){
+  consume();if(/continu|nu|contact|at[âa]t/.test(text)&&!service){stage='name';ask('Cum te numești sau care este numele companiei?');}
+  else{dwsArchiveJob();stage='additionalService';if(service)startDWS(service);else ask('Ce alt serviciu dorești să adaugi?');}renderDWSQuick();return;
+ }
+ if(lead.service&&!['service','done','name','contact'].includes(stage)&&service&&service!==lead.service&&
+ (/^(cur[ăa][țt]enie|cur[ăa][țt]are geamuri|geamuri|debarasare(?: și evacuare)?|întreținere(?: proprietăți)?)$/.test(text)||/mai (?:vreau|doresc|am)|(?:adaug|înloc|inloc|schimb).*(?:geam|debar|evacu|cur[ăa][țt]|între|intre)/.test(text))){
+  consume();dwsPendingService=service;dwsResumeStage=stage;stage='serviceChange';ask('Ai menționat '+service+'. Îl adăugăm la cerere sau înlocuiește lucrarea curentă? Detaliile deja date sunt păstrate până alegi.');return;
+ }
+ return dwsSendSingle();
+};
 </script>
 </body></html>

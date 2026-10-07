@@ -139,7 +139,27 @@ function sendDWS(){
  addDWS(raw,'user'); input.value='';
  const t=raw.toLowerCase();
 
- if(stage==="done"){
+ if(stage==="evaluationChoice"){
+ if(/poz|fotograf|foto/i.test(raw)){
+  lead.evaluation="Fotografii solicitate prin WhatsApp; evaluare de confirmat de echipa DWS";
+  addDWS('Poți trimite fotografii de ansamblu și de aproape ale zonei, inclusiv accesul și eventualele depuneri. Menționează numele și localitatea, ca echipa să le poată asocia cererii. Fotografiile ajută la evaluare; prețul va fi confirmat de echipă.');
+  addDWS('<a style="color:#f1d77e;font-weight:800" href="https://wa.me/40774023316?text='+encodeURIComponent('Bună ziua, doresc evaluarea lucrării pe baza fotografiilor. Voi indica numele și localitatea cererii.')+'" target="_blank" rel="noopener">Trimite fotografii echipei DWS pe WhatsApp</a>','bot',true);
+  stage="frequency";ask("Ai nevoie de o singură intervenție sau de serviciu periodic?");return;
+ }
+ if(/vizit|persoan|fața|fata|locului|echip|evaluare/i.test(raw)){
+  lead.evaluation="Evaluare la fața locului solicitată; programarea și eventualele costuri trebuie confirmate de echipa DWS";
+  stage="visitDetails";ask("Care este adresa lucrării și când ai fi disponibil pentru evaluare? Echipa DWS va confirma programarea și eventualele costuri înainte de vizită.");return;
+ }
+ if(/continu|estim/i.test(raw)){lead.evaluation="Date incomplete; necesită confirmare înainte de ofertare";stage="frequency";ask("Ai nevoie de o singură intervenție sau de serviciu periodic?");return;}
+ ask("Preferi să trimiți fotografii pe WhatsApp sau să soliciți o evaluare la fața locului? Poți și continua cu informațiile pe care le cunoști.");return;
+}
+if(stage==="visitDetails"){lead.visitDetails=raw;stage="frequency";ask("Ai nevoie de o singură intervenție sau de serviciu periodic?");return;}
+if(["workScope","size","workAccess","windowSides","windowAccess","windowScope"].includes(stage)&&/nu (?:[șs]tiu|cunosc|pot (?:estima|spune|aprecia))|habar|greu de (?:estimat|spus)/i.test(raw)){
+ const fields={workScope:"workScope",size:"size",workAccess:"workAccess",windowSides:"windowSides",windowAccess:"windowAccess",windowScope:"windowScope"};
+ lead[fields[stage]]=raw;lead.evaluation="Detalii necunoscute; evaluare necesară";
+ stage="evaluationChoice";ask("Nicio problemă. Poți trimite fotografii echipei DWS pe WhatsApp sau putem solicita o evaluare la fața locului. Ce variantă preferi? Dacă dorești, continuăm cu informațiile pe care le cunoști.");return;
+}
+if(stage==="done"){
    if(/nou|alta|altă|ofert/.test(t)){lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""};stage="service";ask("Sigur. Pentru ce serviciu ai nevoie de ofertă?");}
    else ask("Solicitarea anterioară este deja pregătită. Poți spune „ofertă nouă” pentru o altă lucrare.");
    return;
@@ -200,7 +220,7 @@ function sendDWS(){
  let botSending=false;
  finishDWS=async function(){
   if(botSending)return;
-  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\n'+(lead.service==='Curățare geamuri'?'Număr și dimensiuni geamuri (declarate de client): ':lead.service.includes('Debarasare')?'Obiecte / volum de evacuat: ':'Suprafață de lucru declarată: ')+lead.size+(lead.service==='Curățare geamuri'?'\nPărți de curățat: '+lead.windowSides+'\nÎnălțime și acces: '+lead.windowAccess+'\nRame, pervazuri și depuneri: '+lead.windowScope:'')+(lead.workScope?'\nLucrări cerute: '+lead.workScope:'')+(lead.workAccess?'\nAcces și restricții: '+lead.workAccess:'')+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when};
+  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\n'+(lead.service==='Curățare geamuri'?'Număr și dimensiuni geamuri (declarate de client): ':lead.service.includes('Debarasare')?'Obiecte / volum de evacuat: ':'Suprafață de lucru declarată: ')+(lead.size||'De evaluat')+(lead.service==='Curățare geamuri'?'\nPărți de curățat: '+(lead.windowSides||'De evaluat')+'\nÎnălțime și acces: '+(lead.windowAccess||'De evaluat')+'\nRame, pervazuri și depuneri: '+(lead.windowScope||'De evaluat'):'')+(lead.workScope?'\nLucrări cerute: '+lead.workScope:'')+(lead.workAccess?'\nAcces și restricții: '+lead.workAccess:'')+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when+(lead.evaluation?'\nEvaluare: '+lead.evaluation:'')+(lead.visitDetails?'\nAdresă și disponibilitate pentru evaluare: '+lead.visitDetails:'')};
   botSending=true;stage='sending';addDWS('Salvez solicitarea pentru echipa DWS…');
   try{await saveLead(fields);addDWS('Solicitarea ta a fost trimisă direct echipei DWS. Te vom contacta la '+fields.contact+' pentru evaluare și ofertă.');stage='done';}
   catch(e){addDWS((e.message||'Nu am putut confirma salvarea.')+'\nScrie din nou emailul sau telefonul pentru a reîncerca, ori sună DWS la +40 774 023 316.');stage='contact';}

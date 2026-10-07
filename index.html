@@ -109,14 +109,14 @@ function addDWS(text,who='bot',html=false){
 }
 function ask(t){setTimeout(()=>addDWS(t),180)}
 function startDWS(service){
- lead.service=service; stage="location"; addDWS(service,'user');
+ lead={service:"",location:"",property:"",size:"",frequency:"",when:"",name:"",contact:""}; lead.service=service; stage="location"; addDWS(service,'user');
  ask("Perfect. În ce localitate este lucrarea?");
 }
 function detectService(t){
- if(/geam|vitr|fațad|fatad/.test(t)) return "Curățare geamuri";
+ if(/geam|vitr/.test(t)) return "Curățare geamuri";
  if(/debar|evacu|mobil|golesc|golire/.test(t)) return "Debarasare și evacuare";
  if(/întrețin|intretin|facility|propriet/.test(t)) return "Întreținere proprietăți";
- if(/curăț|curat|birou|magazin|spațiu comercial|spatiu comercial|casă|casa|apartament/.test(t)) return "Curățenie profesională";
+ if(/curăț|curat|pardose|pode|parchet|gresie|mochet|birou|magazin|spațiu comercial|spatiu comercial|casă|casa|apartament/.test(t)) return "Curățenie profesională";
  return "";
 }
 function finishDWS(){
@@ -135,7 +135,7 @@ Contact: ${lead.contact}`;
  stage="done";
 }
 function sendDWS(){
- const input=document.getElementById('dwsInput'), raw=input.value.trim(); if(!raw)return;
+ const input=document.getElementById('dwsInput'), raw=input.value.trim(); if(!raw||stage==="sending")return;
  addDWS(raw,'user'); input.value='';
  const t=raw.toLowerCase();
 
@@ -150,8 +150,21 @@ function sendDWS(){
    lead.service=s; stage="location"; ask("În regulă. În ce localitate este lucrarea?"); return;
  }
  if(stage==="location"){lead.location=raw;stage="property";ask("Ce tip de spațiu este? De exemplu: apartament, casă, birou, magazin, scară de bloc, hală sau alt tip de proprietate.");return}
- if(stage==="property"){lead.property=raw;stage="size";ask(lead.service.includes("Debarasare")?"Care este volumul aproximativ? Poți spune numărul de camere sau ce trebuie evacuat.":"Ce dimensiune aproximativă are spațiul (m²)? Dacă nu știi exact, poți da o estimare.");return}
- if(stage==="size"){lead.size=raw;stage="frequency";ask(lead.service.includes("Debarasare")?"Este o singură intervenție?":"Ai nevoie de o singură intervenție sau de serviciu periodic?");return}
+ if(stage==="property"){
+ lead.property=raw;
+ if(lead.service!=="Curățare geamuri"){stage="workScope";ask(lead.service.includes("Debarasare")?"Ce obiecte sau materiale trebuie evacuate? Menționează dacă sunt moloz, aparate electrice, vopsele ori alte materiale speciale.":lead.service.includes("Întreținere")?"Ce activități de întreținere dorești concret? De exemplu: curățenie în spații comune, îngrijirea curții sau alte lucrări. Poți descrie necesarul în cuvintele tale.":"Ce dorești să curățăm concret: pardoseli, mobilier, băi, bucătărie sau întregul spațiu? Este curățenie obișnuită, generală ori după renovare?");return;}
+ stage="size";ask(lead.service==="Curățare geamuri"?"Știi numărul aproximativ de geamuri și dimensiunile aproximative ale acestora (lățime × înălțime)? De exemplu: 12 geamuri de circa 1 × 1,5 m. Dacă nu știi, spune-mi și echipa va confirma la evaluare.":lead.service.includes("Debarasare")?"Ce trebuie evacuat și în ce cantitate aproximativă? De exemplu: 3 dulapuri și 2 canapele, sau aproximativ 5 m³.":"Ce suprafață aproximativă trebuie curățată sau întreținută, în m²? Dacă nu știi, poți spune că este de evaluat.");return}
+ if(stage==="workScope"){lead.workScope=raw;stage="size";ask(lead.service.includes("Debarasare")?"Ce cantitate aproximativă trebuie evacuată? Poți indica numărul obiectelor sau volumul în m³. Dacă nu cunoști, spune că este de evaluat.":lead.service.includes("Întreținere")?"Care este dimensiunea zonei pentru fiecare activitate cerută? De exemplu: suprafață în m², număr de scări sau etaje. Precizează la ce se referă fiecare valoare; dacă nu știi, vom evalua.":"Ce suprafață aproximativă trebuie efectiv curățată, în m²? Pentru pardoseli, spune și materialul (parchet, gresie, mochetă etc.). Dacă sunt mai multe zone, le poți descrie separat.");return;}
+ if(stage==="size"){
+ if(/^\d+(?:[.,]\d+)?$/.test(raw)){ask(lead.service==="Curățare geamuri"?"Numărul indicat reprezintă câte geamuri sunt sau suprafața lor în m²? Precizează și dimensiunile aproximative, dacă le cunoști.":lead.service.includes("Debarasare")?"Numărul reprezintă câte obiecte sunt sau volumul în m³? Precizează la ce se referă.":"Numărul reprezintă suprafața în m² sau o altă cantitate? Precizează la ce lucrare se referă.");return;}
+ lead.size=raw;
+ if(lead.service==="Curățare geamuri"){stage="windowSides";ask("Dorești curățarea pe interior, pe exterior sau pe ambele părți?");return;}
+ stage="workAccess";ask(lead.service.includes("Debarasare")?"De la ce etaj se ridică obiectele? Există lift potrivit și acces pentru mașina de transport? Sunt obiecte grele sau voluminoase?":"Cum se poate accesa zona și sunt restricții importante: înălțime, program, mobilier, utilaje ori materiale delicate? Poți spune și că aceste detalii trebuie verificate.");return;
+ }
+ if(stage==="workAccess"){lead.workAccess=raw;stage="frequency";ask(lead.service.includes("Debarasare")?"Este o singură intervenție sau sunt mai multe etape?":"Ai nevoie de o singură intervenție sau de serviciu periodic? Dacă este periodic, ce frecvență dorești?");return;}
+ if(stage==="windowSides"){if(!/interior|exterior|ambele|amândou|amandou|nu [șs]tiu|evalu/i.test(raw)){ask("Te referi la interior, exterior sau ambele părți? Dacă nu știi încă, spune-mi acest lucru.");return;}lead.windowSides=raw;stage="windowAccess";ask(/interior/i.test(raw)&&!/exterior|ambele|amândou|amandou/i.test(raw)?"La ce înălțime sunt geamurile și se poate ajunge la ele din interior? Sunt obstacole sau este nevoie de scară?":"La ce etaj sau înălțime sunt geamurile și cum se poate ajunge la exterior? De exemplu: parter, se deschid spre interior, acces cu scară sau platformă. Dacă nu știi, vom verifica la evaluare.");return;}
+ if(stage==="windowAccess"){lead.windowAccess=raw;stage="windowScope";ask("Vrei și curățarea ramelor și pervazurilor? Sunt depuneri obișnuite sau urme după renovare, precum vopsea, ciment ori adeziv?");return;}
+ if(stage==="windowScope"){lead.windowScope=raw;stage="frequency";ask("Ai nevoie de o singură intervenție sau de curățare periodică?");return;}
  if(stage==="frequency"){lead.frequency=raw;stage="when";ask("Când ai dori să fie efectuată lucrarea?");return}
  if(stage==="when"){lead.when=raw;stage="name";ask("Perfect. Cum te numești sau care este numele companiei?");return}
  if(stage==="name"){lead.name=raw;stage="contact";ask("Ultimul pas: lasă un număr de telefon sau o adresă de e-mail la care echipa DWS te poate contacta.");return}
@@ -187,7 +200,7 @@ function sendDWS(){
  let botSending=false;
  finishDWS=async function(){
   if(botSending)return;
-  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\nSuprafață / volum: '+lead.size+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when};
+  const fields={name:lead.name,contact:lead.contact,service:lead.service,location:lead.location,details:'Tip proprietate: '+lead.property+'\n'+(lead.service==='Curățare geamuri'?'Număr și dimensiuni geamuri (declarate de client): ':lead.service.includes('Debarasare')?'Obiecte / volum de evacuat: ':'Suprafață de lucru declarată: ')+lead.size+(lead.service==='Curățare geamuri'?'\nPărți de curățat: '+lead.windowSides+'\nÎnălțime și acces: '+lead.windowAccess+'\nRame, pervazuri și depuneri: '+lead.windowScope:'')+(lead.workScope?'\nLucrări cerute: '+lead.workScope:'')+(lead.workAccess?'\nAcces și restricții: '+lead.workAccess:'')+'\nFrecvență: '+lead.frequency+'\nTermen dorit: '+lead.when};
   botSending=true;stage='sending';addDWS('Salvez solicitarea pentru echipa DWS…');
   try{await saveLead(fields);addDWS('Solicitarea ta a fost trimisă direct echipei DWS. Te vom contacta la '+fields.contact+' pentru evaluare și ofertă.');stage='done';}
   catch(e){addDWS((e.message||'Nu am putut confirma salvarea.')+'\nScrie din nou emailul sau telefonul pentru a reîncerca, ori sună DWS la +40 774 023 316.');stage='contact';}
